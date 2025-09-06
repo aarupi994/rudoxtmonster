@@ -218,4 +218,4 @@ def admin_credit(message):
     try:
         _, amount, uid = message.text.split()
         update_credits(uid, int(amount), datetime.date.today().isoformat())
-        bot.reply_to(message, f
+bot.reply_to(message, f"Credits updated! {amount} points added to user {uid}.")
