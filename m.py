@@ -160,8 +160,8 @@ def do_search(message):
             msg += f"• 🔎 Found In: {record.get('found_in','N/A')}\n\n"
 
         bot.send_message(user_id, msg)  # Only user sees, even in GC
-
         update_credits(user_id, credits - 1, today)
+
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{user_id} searched {number} at {datetime.datetime.now()}\n")
 
@@ -209,7 +209,7 @@ def support(message):
     bot.reply_to(message, "🛠 For support contact: @RUDOWNER")
 
 # =============================
-# ADMIN COMMANDS
+# ADMIN COMMANDS (/credit)
 # =============================
 @bot.message_handler(commands=['credit'])
 def admin_credit(message):
@@ -218,4 +218,11 @@ def admin_credit(message):
     try:
         _, amount, uid = message.text.split()
         update_credits(uid, int(amount), datetime.date.today().isoformat())
-bot.reply_to(message, f"Credits updated! {amount} points added to user {uid}.")
+        bot.reply_to(message, f"✅ Credits updated! {amount} points added to user {uid}.")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
+
+# =============================
+# RUN BOT
+# =============================
+bot.polling()
