@@ -1,18 +1,20 @@
 import telebot
 import requests
-import datetime
 import os
+import datetime
 
 # =============================
-# CONFIG
+# CONFIGURATION
 # =============================
-BOT_TOKEN = "8294178048:AAEF13gjFiP66X8dFmkTPfsX2W_rz_Sd2WA"
-API_URL = "https://lively-giving-shark.ngrok-free.app/api/mobile?api_key=sk_live_05ff8c0f8ca141b68217557e8b3fdcef653142c0&mobile="
-ADMIN_ID = 123456789  # <- apna Telegram ID yaha daalna
+BOT_TOKEN = "8294178048:AAEN2wUg8hhefx6VHWuHnC38qUpfvop_FGI"
+ADMIN_IDS = [8256977732, 8194709714]  # Admins list
+API_KEY = "sk_live_e532d724903249c593e23d6198b329f47358ed34"
+API_URL = "https://unexperienced-charis-unrailwayed.ngrok-free.app/api/mobile"
+
 FORCE_JOIN_CHANNELS = [
+    "https://t.me/+Y_M_LzKug1lmYTg1",  # GC link
     "https://t.me/monsters_support",
-    "https://t.me/+odoR0KXyo_8yZjU1",
-    "https://t.me/ShadowNestAPIII"
+    "https://t.me/ShadowNestAPII"
 ]
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -21,8 +23,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # STORAGE FILES
 # =============================
 CREDITS_FILE = "credits.txt"
-LOG_FILE = "log1.txt"
-REFERRAL_FILE = "referrals.txt"
+LOG_FILE = "log.txt"
+CLONE_LOG = "clone.txt"
+REFERRAL_FILE = "referral.txt"
 MUTED_FILE = "muted.txt"
 
 # =============================
@@ -31,24 +34,23 @@ MUTED_FILE = "muted.txt"
 def load_data(filename):
     if not os.path.exists(filename):
         open(filename, "w").close()
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         return f.read().splitlines()
 
 def save_data(filename, data):
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         f.write("\n".join(map(str, data)))
 
 def check_credits(user_id):
     credits = load_data(CREDITS_FILE)
+    today = datetime.date.today().isoformat()
     for line in credits:
         uid, credit, date = line.split("|")
         if str(uid) == str(user_id):
-            # reset daily credits
-            today = datetime.date.today().isoformat()
             if date != today:
-                return int(5), today
+                return 5, today
             return int(credit), date
-    return 5, datetime.date.today().isoformat()
+    return 5, today
 
 def update_credits(user_id, new_credit, date):
     credits = load_data(CREDITS_FILE)
@@ -67,7 +69,8 @@ def is_muted(user_id):
 
 def mute_user(user_id):
     muted = load_data(MUTED_FILE)
-    muted.append(str(user_id))
+    if str(user_id) not in muted:
+        muted.append(str(user_id))
     save_data(MUTED_FILE, muted)
 
 def unmute_user(user_id):
@@ -82,7 +85,7 @@ def unmute_user(user_id):
 def force_join_check(message):
     buttons = []
     for ch in FORCE_JOIN_CHANNELS:
-        buttons.append([telebot.types.InlineKeyboardButton("👉 Click to Join", url=ch)])
+        buttons.append([telebot.types.InlineKeyboardButton("👉 Join Channel", url=ch)])
     markup = telebot.types.InlineKeyboardMarkup(buttons)
     bot.send_message(
         message.chat.id,
@@ -91,51 +94,37 @@ def force_join_check(message):
     )
 
 # =============================
-# COMMANDS
+# START COMMAND / MENU
 # =============================
-
 @bot.message_handler(commands=['start'])
 def start(message):
     if is_muted(message.from_user.id):
-        bot.reply_to(message, "⛔ You are muted for 1 day due to spam.")
+        bot.reply_to(message, "⛔ You are muted for 1 day.")
         return
 
     force_join_check(message)
 
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🔍 Search", "⚙️ Settings")
-    markup.add("👥 Referral", "📩 Contact")
+    markup.add("🔍 SEARCH", "😇 MY PROFILE")
+    markup.add("🤖 BOT CLONE", "🛠 SUPPORT")
     bot.send_message(
         message.chat.id,
-        "👋 Welcome! Use the menu below.",
+        "👋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐑𝐔𝐃𝐎-𝐈𝐍𝐅𝐎 𝐁𝐎𝐓\nPlease choose an option below:",
         reply_markup=markup
     )
 
-@bot.message_handler(func=lambda m: m.text == "📩 Contact")
-def contact(message):
-    bot.reply_to(message, "For balance & help contact: @RUDOWNER")
-
-@bot.message_handler(func=lambda m: m.text == "👥 Referral")
-def referral(message):
-    bot.reply_to(message, "Refer your friends. When they join, you get +1 credit!")
-
-@bot.message_handler(func=lambda m: m.text == "⚙️ Settings")
-def settings(message):
-    bot.reply_to(message, "⚙️ Settings will be available soon.")
-
-@bot.message_handler(func=lambda m: m.text == "🔍 Search")
+# =============================
+# SEARCH OPTION
+# =============================
+@bot.message_handler(func=lambda m: m.text == "🔍 SEARCH")
 def search_start(message):
-    bot.send_message(
-        message.chat.id,
-        "🔎 Please enter a number with country code (e.g. +919876543210)."
-    )
+    bot.send_message(message.chat.id, "📱 Enter number without +91 (e.g. 7202936606)")
     bot.register_next_step_handler(message, do_search)
 
 def do_search(message):
     user_id = message.from_user.id
-
     if is_muted(user_id):
-        bot.reply_to(message, "⛔ You are muted for 1 day due to spam.")
+        bot.reply_to(message, "⛔ You are muted for 1 day.")
         return
 
     credits, today = check_credits(user_id)
@@ -145,53 +134,88 @@ def do_search(message):
         return
 
     number = message.text.strip()
-    if not number.startswith("+"):
-        bot.reply_to(message, "❌ Invalid format. Use with country code (e.g. +91...).")
+    if not number.isdigit():
+        bot.reply_to(message, "❌ Invalid format. Digits only without +91.")
         return
 
     try:
-        res = requests.get(API_URL + number).json()
-        bot.reply_to(message, f"📌 Result: {res}")
-    except:
-        bot.reply_to(message, "❌ API Error.")
+        res = requests.get(f"{API_URL}?api_key={API_KEY}&mobile={number}", timeout=10).json()
+        if not res.get("success"):
+            bot.reply_to(message, f"⚠️ API returned error: {res.get('message')}")
+            return
 
-    with open(LOG_FILE, "a") as f:
-        f.write(f"{user_id} searched {number} at {datetime.datetime.now()}\n")
+        data_list = res.get("data", [])
+        if not data_list:
+            bot.reply_to(message, "❌ No record found.")
+            return
 
-    update_credits(user_id, credits - 1, today)
+        msg = f"📱 𝐑𝐞𝐬𝐮𝐥𝐭 for {number}:\n\n"
+        for idx, record in enumerate(data_list, start=1):
+            msg += f"{idx}️⃣ Record:\n"
+            msg += f"• 👤 Name: {record.get('name','N/A')}\n"
+            if record.get('fname'):
+                msg += f"• 🧑 Father Name: {record.get('fname')}\n"
+            msg += f"• 🏠 Address: {record.get('address','N/A')}\n"
+            msg += f"• 📍 Circle: {record.get('circle','N/A')}\n"
+            msg += f"• 🔎 Found In: {record.get('found_in','N/A')}\n\n"
+
+        bot.send_message(user_id, msg)  # Only user sees, even in GC
+
+        update_credits(user_id, credits - 1, today)
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{user_id} searched {number} at {datetime.datetime.now()}\n")
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ API Error: {e}")
+
+# =============================
+# MY PROFILE
+# =============================
+@bot.message_handler(func=lambda m: m.text == "😇 MY PROFILE")
+def my_profile(message):
+    user_id = message.from_user.id
+    credits, _ = check_credits(user_id)
+    clone_count = len(load_data(CLONE_LOG))
+    referral_link = f"https://t.me/YOUR_BOT?start={user_id}"
+
+    msg = f"😇 𝐘𝐨𝐮𝐫 𝐏𝐫𝐨𝐟𝐢𝐥𝐞:\n\n"
+    msg += f"• 👤 User ID: {user_id}\n"
+    msg += f"• 💰 Credits: {credits}\n"
+    msg += f"• 🤖 Clone Bots: {clone_count}\n"
+    msg += f"• 🔗 Referral Link: {referral_link}\n"
+
+    bot.reply_to(message, msg)
+
+# =============================
+# BOT CLONE
+# =============================
+@bot.message_handler(func=lambda m: m.text == "🤖 BOT CLONE")
+def bot_clone(message):
+    bot.send_message(message.chat.id, "⚠️ Enter your bot token to clone features (Example: 1234:ABC-XYZ)")
+    bot.register_next_step_handler(message, process_clone)
+
+def process_clone(message):
+    token = message.text.strip()
+    username = message.from_user.username or "NoUsername"
+    with open(CLONE_LOG, "a", encoding="utf-8") as f:
+        f.write(f"{username} | {token} at {datetime.datetime.now()}\n")
+    bot.reply_to(message, "✅ Bot token saved. Clone features will run similarly to main bot.")
+
+# =============================
+# SUPPORT
+# =============================
+@bot.message_handler(func=lambda m: m.text == "🛠 SUPPORT")
+def support(message):
+    bot.reply_to(message, "🛠 For support contact: @RUDOWNER")
 
 # =============================
 # ADMIN COMMANDS
 # =============================
-
-@bot.message_handler(commands=['unmute'])
-def unmute(message):
-    if message.from_user.id != ADMIN_ID:
+@bot.message_handler(commands=['credit'])
+def admin_credit(message):
+    if message.from_user.id not in ADMIN_IDS:
         return
     try:
-        uid = message.text.split()[1]
-        unmute_user(uid)
-        bot.reply_to(message, f"✅ User {uid} unmuted.")
-    except:
-        bot.reply_to(message, "❌ Usage: /unmute <user_id>")
-
-@bot.message_handler(commands=['broadcast'])
-def broadcast(message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    text = message.text.replace("/broadcast", "").strip()
-    if text:
-        users = load_data(CREDITS_FILE)
-        for u in users:
-            uid = u.split("|")[0]
-            try:
-                bot.send_message(uid, f"📢 Broadcast:\n\n{text}")
-            except:
-                pass
-        bot.reply_to(message, "✅ Broadcast sent.")
-
-# =============================
-# RUN
-# =============================
-print("🤖 Bot running...")
-bot.infinity_polling()
+        _, amount, uid = message.text.split()
+        update_credits(uid, int(amount), datetime.date.today().isoformat())
+        bot.reply_to(message, f
